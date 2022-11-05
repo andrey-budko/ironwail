@@ -98,6 +98,7 @@ cvar_t	r_oldskyleaf = {"r_oldskyleaf", "0", CVAR_NONE};
 cvar_t	r_drawworld = {"r_drawworld", "1", CVAR_NONE};
 cvar_t	r_showtris = {"r_showtris", "0", CVAR_NONE};
 cvar_t	r_showbboxes = {"r_showbboxes", "0", CVAR_NONE};
+cvar_t	r_showbboxes_filter = {"r_showbboxes_filter", "", CVAR_NONE};
 cvar_t	r_lerpmodels = {"r_lerpmodels", "1", CVAR_ARCHIVE};
 cvar_t	r_lerpmove = {"r_lerpmove", "1", CVAR_ARCHIVE};
 cvar_t	r_nolerp_list = {"r_nolerp_list", "progs/flame.mdl,progs/flame2.mdl,progs/braztall.mdl,progs/brazshrt.mdl,progs/longtrch.mdl,progs/flame_pyre.mdl,progs/v_saw.mdl,progs/v_xfist.mdl,progs/h2stuff/newfire.mdl", CVAR_NONE};
@@ -1213,6 +1214,50 @@ static void R_EmitWireBox (const vec3_t mins, const vec3_t maxs, uint32_t color)
 
 /*
 ================
+R_ShowBoundingBoxesFilter
+
+r_showbboxes_filter "artifact,=trigger_secret"
+================
+*/
+static qboolean R_ShowBoundingBoxesFilter (edict_t *ed)
+{
+	if (!*r_showbboxes_filter.string)
+		return true;
+
+	if (ed->v.classname)
+	{
+		static char *filter = NULL;
+		static int filter_size = 0;
+
+		int size = strlen (r_showbboxes_filter.string) + 1;
+		if (filter_size < size)
+		{
+			filter = (char *) realloc (filter, size);
+			if (!filter)
+				Sys_Error ("R_ShowBoundingBoxesFilter: realloc() failed on %d bytes", size);
+			filter_size = size;
+		}
+		strcpy (filter, r_showbboxes_filter.string);
+
+		const char *delim = ",";
+		const char *classname = PR_GetString (ed->v.classname);
+		char *token = strtok (filter, delim);
+		qboolean allowed = false;
+		while (token != NULL && !allowed)
+		{
+			if (*token == '=')
+				allowed = !strcmp (classname, token + 1);
+			else
+				allowed = strstr (classname, token) != NULL;
+			token = strtok (NULL, delim);
+		}
+		return allowed;
+	}
+	return false;
+}
+
+/*
+================
 R_ShowBoundingBoxes -- johnfitz
 
 draw bounding boxes -- the server-side boxes, not the renderer cullboxes
@@ -1252,6 +1297,9 @@ static void R_ShowBoundingBoxes (void)
 		if (ed == sv_player)
 			continue;
 
+		if (!R_ShowBoundingBoxesFilter(ed))
+			continue;
+
 		if (pvs)
 		{
 			qboolean inpvs =
@@ -1278,6 +1326,8 @@ static void R_ShowBoundingBoxes (void)
 						break;
 				}
 			}
+			if (ed->v.health > 0)
+				color = 0xff0000ff;
 		}
 		else
 			color = 0xffffffff;
