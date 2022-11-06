@@ -36,6 +36,7 @@ extern cvar_t r_oldskyleaf;
 extern cvar_t r_drawworld;
 extern cvar_t r_showtris;
 extern cvar_t r_showbboxes;
+extern cvar_t r_showbboxes_filter;
 extern cvar_t r_lerpmodels;
 extern cvar_t r_lerpmove;
 extern cvar_t r_nolerp_list;
@@ -51,6 +52,34 @@ extern cvar_t r_simd;
 qboolean use_simd;
 
 extern gltexture_t *playertextures[MAX_SCOREBOARD]; //johnfitz
+
+/*
+====================
+R_SetShowbboxesFilter_f
+====================
+*/
+static void R_SetShowbboxesFilter_f (cvar_t *var)
+{
+	extern char *r_showbboxes_filter_strings;
+
+	free (r_showbboxes_filter_strings);
+	r_showbboxes_filter_strings = NULL;
+
+	if (*var->string)
+	{
+		int size = strlen (var->string) + 2;
+		r_showbboxes_filter_strings = (char *) malloc(size);
+		if (!r_showbboxes_filter_strings)
+			Sys_Error ("R_SetShowbboxesFilter_f: malloc() failed on %d bytes", size);
+
+		strcpy (r_showbboxes_filter_strings, var->string);
+		r_showbboxes_filter_strings[size - 1] = '\0';
+
+		char *p = r_showbboxes_filter_strings;
+		while ((p = strchr (p, ',')) != NULL)
+			*p++ = '\0';
+	}
+}
 
 /*
 ====================
@@ -220,6 +249,8 @@ void R_Init (void)
 	Cvar_RegisterVariable (&r_drawworld);
 	Cvar_RegisterVariable (&r_showtris);
 	Cvar_RegisterVariable (&r_showbboxes);
+	Cvar_RegisterVariable (&r_showbboxes_filter);
+	Cvar_SetCallback (&r_showbboxes_filter, R_SetShowbboxesFilter_f);
 	Cvar_RegisterVariable (&gl_farclip);
 	Cvar_RegisterVariable (&gl_fullbrights);
 	Cvar_SetCallback (&gl_fullbrights, GL_Fullbrights_f);
