@@ -67,17 +67,28 @@ static void R_SetShowbboxesFilter_f (cvar_t *var)
 
 	if (*var->string)
 	{
-		int size = strlen (var->string) + 2;
+		int len = strlen (var->string);
+		int size = len + 2;
 		r_showbboxes_filter_strings = (char *) malloc(size);
 		if (!r_showbboxes_filter_strings)
 			Sys_Error ("R_SetShowbboxesFilter_f: malloc() failed on %d bytes", size);
 
-		strcpy (r_showbboxes_filter_strings, var->string);
-		r_showbboxes_filter_strings[size - 1] = '\0';
+		char *filter = strdup(var->string);
+		if (!filter)
+			Sys_Error ("R_SetShowbboxesFilter_f: strdup() failed on %d bytes", len + 1);
 
 		char *p = r_showbboxes_filter_strings;
-		while ((p = strchr (p, ',')) != NULL)
-			*p++ = '\0';
+		const char *delim = ",";
+		char *token = strtok (filter, delim);
+		while (token != NULL)
+		{
+			strcpy (p, token);
+			p += strlen(token) + 1;
+			token = strtok (NULL, delim);
+		}
+		*p = '\0';
+
+		free(filter);
 	}
 }
 
