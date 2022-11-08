@@ -1226,21 +1226,22 @@ static qboolean R_ShowBoundingBoxesFilter (edict_t *ed)
 	if (!r_showbboxes_filter_strings)
 		return true;
 
-	if (!ed->v.classname)
-		return false;
-
-	const char *classname = PR_GetString (ed->v.classname);
-	char *str = r_showbboxes_filter_strings;
-	qboolean is_allowed = false;
-	while (*str && !is_allowed)
+	if (ed->v.classname)
 	{
-		if (*str == '=')
-			is_allowed = !strcmp (classname, str + 1);
-		else
-			is_allowed = strstr (classname, str) != NULL;
-		str += strlen (str) + 1;
+		const char *classname = PR_GetString (ed->v.classname);
+		char *str = r_showbboxes_filter_strings;
+		qboolean is_allowed = false;
+		while (*str && !is_allowed)
+		{
+			if (*str == '=')
+				is_allowed = !strcmp (classname, str + 1);
+			else
+				is_allowed = strstr (classname, str) != NULL;
+			str += strlen (str) + 1;
+		}
+		return is_allowed;
 	}
-	return is_allowed;
+	return false;
 }
 
 /*
