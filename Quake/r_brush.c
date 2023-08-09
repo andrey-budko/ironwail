@@ -1238,10 +1238,11 @@ void R_BuildLightMap (msurface_t *surf, byte *dest, int stride)
 					g = *bl++ >> 7;
 					b = *bl++ >> 7;
 				}
-				*dest++ = (r > 255)? 255 : r;
-				*dest++ = (g > 255)? 255 : g;
-				*dest++ = (b > 255)? 255 : b;
-				*dest++ = 255;
+				r = (r > 1023)? 1023 : r;
+				g = (g > 1023)? 1023 : g;
+				b = (b > 1023)? 1023 : b;
+				*(unsigned int*)dest = (r<<22) | (g<<12) | (b<<2) | 3;
+				dest += 4;
 			}
 		}
 		break;
@@ -1264,10 +1265,11 @@ void R_BuildLightMap (msurface_t *surf, byte *dest, int stride)
 					g = *bl++ >> 7;
 					b = *bl++ >> 7;
 				}
-				*dest++ = (b > 255)? 255 : b;
-				*dest++ = (g > 255)? 255 : g;
-				*dest++ = (r > 255)? 255 : r;
-				*dest++ = 255;
+				r = (r > 1023)? 1023 : r;
+				g = (g > 1023)? 1023 : g;
+				b = (b > 1023)? 1023 : b;
+				*(unsigned int*)dest = (b<<22) | (g<<12) | (r<<2) | 3;
+				dest += 4;
 			}
 		}
 		break;
@@ -1293,7 +1295,7 @@ static void R_UploadLightmap(int lmap)
 	lm->modified = false;
 
 	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, lm->rectchange.t, LMBLOCK_WIDTH, lm->rectchange.h, gl_lightmap_format,
-			GL_UNSIGNED_BYTE, lm->data+lm->rectchange.t*LMBLOCK_WIDTH*lightmap_bytes);
+			GL_UNSIGNED_INT_10_10_10_2, lm->data+lm->rectchange.t*LMBLOCK_WIDTH*lightmap_bytes);
 	lm->rectchange.l = LMBLOCK_WIDTH;
 	lm->rectchange.t = LMBLOCK_HEIGHT;
 	lm->rectchange.h = 0;
@@ -1352,6 +1354,6 @@ void R_RebuildAllLightmaps (void)
 	{
 		GL_Bind (lightmaps[i].texture);
 		glTexSubImage2D (GL_TEXTURE_2D, 0, 0, 0, LMBLOCK_WIDTH, LMBLOCK_HEIGHT, gl_lightmap_format,
-				 GL_UNSIGNED_BYTE, lightmaps[i].data);
+				 GL_UNSIGNED_INT_10_10_10_2, lightmaps[i].data);
 	}
 }
