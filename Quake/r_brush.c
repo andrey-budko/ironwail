@@ -38,6 +38,11 @@ int					allocated[LMBLOCK_WIDTH];
 
 unsigned	blocklights[LMBLOCK_WIDTH*LMBLOCK_HEIGHT*3]; //johnfitz -- was 18*18, added lit support (*3) and loosened surface extents maximum (LMBLOCK_WIDTH*LMBLOCK_HEIGHT)
 
+qboolean R_LightmapWide (void)
+{
+	return gl_packed_pixels && gl_overbright.value;
+}
+
 
 /*
 ===============
@@ -1238,7 +1243,7 @@ void R_BuildLightMap (msurface_t *surf, byte *dest, int stride)
 					g = *bl++ >> 7;
 					b = *bl++ >> 7;
 				}
-				if (gl_packed_pixels)
+				if (R_LightmapWide())
 				{
 					r = (r > 1023)? 1023 : r;
 					g = (g > 1023)? 1023 : g;
@@ -1275,7 +1280,7 @@ void R_BuildLightMap (msurface_t *surf, byte *dest, int stride)
 					g = *bl++ >> 7;
 					b = *bl++ >> 7;
 				}
-				if (gl_packed_pixels)
+				if (R_LightmapWide())
 				{
 					r = (r > 1023)? 1023 : r;
 					g = (g > 1023)? 1023 : g;
@@ -1307,7 +1312,7 @@ assumes lightmap texture is already bound
 */
 static void R_UploadLightmap(int lmap)
 {
-	const GLenum type = gl_packed_pixels ? GL_UNSIGNED_INT_10_10_10_2 : GL_UNSIGNED_BYTE;
+	const GLenum type = R_LightmapWide() ? GL_UNSIGNED_INT_10_10_10_2 : GL_UNSIGNED_BYTE;
 	struct lightmap_s *lm = &lightmaps[lmap];
 
 	if (!lm->modified)
@@ -1346,7 +1351,7 @@ R_RebuildAllLightmaps -- johnfitz -- called when gl_overbright gets toggled
 */
 void R_RebuildAllLightmaps (void)
 {
-	const GLenum type = gl_packed_pixels ? GL_UNSIGNED_INT_10_10_10_2 : GL_UNSIGNED_BYTE;
+	const GLenum type = R_LightmapWide() ? GL_UNSIGNED_INT_10_10_10_2 : GL_UNSIGNED_BYTE;;
 	int			i, j;
 	qmodel_t	*mod;
 	msurface_t	*fa;
