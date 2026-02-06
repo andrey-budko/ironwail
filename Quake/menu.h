@@ -28,6 +28,7 @@ enum m_state_e {
 	m_main,
 	m_singleplayer,
 	m_load,
+	m_quickload,
 	m_save,
 	m_maps,
 	m_skill,
@@ -77,6 +78,8 @@ void M_OnModInstall (const char *name);
 void M_Menu_Main_f (void);
 void M_Menu_Options_f (void);
 void M_Menu_Quit_f (void);
+void M_ResolveSavegameName (const char* in, char* out, int outsize);
+void M_ResolveLoadgameName (const char* in, char* out, int outsize);
 
 void M_Print (int cx, int cy, const char *str);
 void M_PrintWhite (int cx, int cy, const char *str);

@@ -1403,9 +1403,28 @@ void SaveList_Rebuild (void)
 	SaveList_Init ();
 }
 
-void SaveList_Init (void)
+void SaveList_AddDir (const char* root, const char* relpath)
 {
 	char		dirname[MAX_OSPATH];
+	char		savename[MAX_QPATH];
+	findfile_t *find;
+
+	if ((size_t) q_snprintf (dirname, sizeof (dirname), "%s/%s", root, relpath) < sizeof (dirname))
+	{
+		for (find = Sys_FindFirst (dirname, "sav"); find; find = Sys_FindNext (find))
+		{
+			char filename[MAX_QPATH];
+			if (find->attribs & FA_DIRECTORY)
+				continue;
+			COM_StripExtension (find->name, filename, sizeof (filename));
+			if ((size_t) q_snprintf (savename, sizeof (savename), "%s/%s", relpath, filename) < sizeof (savename))
+				FileList_Add (savename, &savelist);
+		}
+	}
+}
+
+void SaveList_Init (void)
+{
 	char		savename[MAX_QPATH];
 	findfile_t *find;
 
@@ -1417,18 +1436,8 @@ void SaveList_Init (void)
 		FileList_Add (savename, &savelist);
 	}
 
-	if ((size_t) q_snprintf (dirname, sizeof (dirname), "%s/autosave", com_gamedir) < sizeof (dirname))
-	{
-		for (find = Sys_FindFirst (dirname, "sav"); find; find = Sys_FindNext (find))
-		{
-			char filename[MAX_QPATH];
-			if (find->attribs & FA_DIRECTORY)
-				continue;
-			COM_StripExtension (find->name, filename, sizeof (filename));
-			if ((size_t) q_snprintf (savename, sizeof (savename), "autosave/%s", filename) < sizeof (savename))
-				FileList_Add (savename, &savelist);
-		}
-	}
+	SaveList_AddDir (com_gamedir, "autosave");
+	SaveList_AddDir (com_gamedir, "quicksave");
 }
 
 //==============================================================================
@@ -2429,7 +2438,7 @@ static void Host_Savegame_f (void)
 		}
 	}
 
-	q_strlcpy (relname, Cmd_Argv(1), sizeof(relname));
+	M_ResolveSavegameName (Cmd_Argv (1), relname, sizeof (relname));
 	COM_AddExtension (relname, ".sav", sizeof(relname));
 	q_snprintf (name, sizeof(name), "%s/%s", com_gamedir, relname);
 
@@ -2524,7 +2533,7 @@ static void Host_Loadgame_f (void)
 
 	cls.demonum = -1;		// stop demo loop in case this fails
 
-	q_strlcpy (relname, Cmd_Argv(1), sizeof(relname));
+	M_ResolveLoadgameName (Cmd_Argv (1), relname, sizeof (relname));
 	COM_AddExtension (relname, ".sav", sizeof(relname));
 
 	q_snprintf (name, sizeof(name), "%s/%s", com_gamedir, relname);

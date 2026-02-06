@@ -1396,12 +1396,90 @@ void M_SinglePlayer_Mousemove (float cx, float cy)
 /* LOAD/SAVE MENU */
 
 int		load_cursor;		// 0 < load_cursor < MAX_SAVEGAMES
+int		quickload_cursor;
 
 #define	MAX_SAVEGAMES		20	/* johnfitz -- increased from 12 */
 char	m_filenames[MAX_SAVEGAMES][SAVEGAME_COMMENT_LENGTH+1];
 int		loadable[MAX_SAVEGAMES];
 
-void M_ScanSaves (void)
+cvar_t	quicksave_rotation = { "quicksave_rotation", "0", CVAR_ARCHIVE };
+typedef struct
+{
+	int slot;
+	time_t time;
+	char name[SAVEGAME_COMMENT_LENGTH + 1];
+} quicksave_t;
+typedef struct
+{
+	quicksave_t list[MAX_SAVEGAMES];
+	int count;
+} quicksaves_t;
+quicksaves_t quicksaves;
+
+void M_ScanQuickSaves (void);
+int M_FindQuickSaveSlot (void);
+
+qboolean M_IsRotatedQuickSaveRequest (const char* name)
+{
+	return (int)quicksave_rotation.value && !strcmp (name, "quick");
+}
+
+void M_ResolveSavegameName (const char* in, char* out, int outsize)
+{
+	if (M_IsRotatedQuickSaveRequest (in))
+	{
+		q_snprintf (out, outsize, "quicksave/quick%d", M_FindQuickSaveSlot ());
+		quickload_cursor = 0;
+		return;
+	}
+	q_strlcpy (out, in, outsize);
+}
+
+void M_ResolveLoadgameName (const char* in, char* out, int outsize)
+{
+	if (M_IsRotatedQuickSaveRequest (in))
+	{
+		M_ScanQuickSaves ();
+		if (quicksaves.count > 0)
+		{
+			q_snprintf (out, outsize, "quicksave/quick%d", quicksaves.list[0].slot);
+			return;
+		}
+	}
+	q_strlcpy (out, in, outsize);
+}
+
+int M_FindQuickSaveSlot (void)
+{
+	char path[MAX_OSPATH];
+	time_t oldest_time = 0;
+	int oldest_slot = 0;
+	int found = 0;
+
+	for (int i = 0; i < MAX_SAVEGAMES; i++)
+	{
+		time_t t;
+		q_snprintf (path, sizeof (path), "%s/quicksave/quick%i.sav", com_gamedir, i);
+
+		if (!Sys_FileExists (path))
+			return i;
+
+		if (!Sys_GetFileTime (path, &t))
+			continue;
+
+		if (!found || t < oldest_time)
+		{
+			oldest_time = t;
+			oldest_slot = i;
+			found = 1;
+		}
+	}
+
+	return oldest_slot;
+}
+
+
+void M_ScanSaves ()
 {
 	int	i, j;
 	char	name[MAX_OSPATH];
@@ -1435,8 +1513,84 @@ void M_ScanSaves (void)
 	}
 }
 
+int M_QuickSaveCompare (const void* a, const void* b)
+{
+	const quicksave_t* qa = a;
+	const quicksave_t* qb = b;
+
+	return (qb->time > qa->time) - (qb->time < qa->time);
+}
+
+void M_ScanQuickSaves (void)
+{
+	int	i;
+	char name[MAX_OSPATH];
+	char desc[MAX_OSPATH];
+	FILE* f;
+	int	version;
+	time_t filetime;
+
+	quicksaves.count = 0;
+
+	for (i = 0; i < MAX_SAVEGAMES; i++)
+	{
+		strcpy (m_filenames[i], "--- UNUSED QUICK SLOT ---");
+		loadable[i] = false;
+	}
+
+	for (i = 0; i < MAX_SAVEGAMES; i++)
+	{
+		q_snprintf (name, sizeof (name), "%s/quicksave/quick%i.sav", com_gamedir, i);
+
+		f = Sys_fopen (name, "r");
+		if (!f) {
+			continue;
+		}
+		if (fscanf (f, "%i\n", &version) != 1 ||
+			fscanf (f, "%79s\n", desc) != 1) {
+			fclose (f);
+			continue;
+		}
+
+		if (Sys_GetFileTime (name, &filetime))
+		{
+			quicksave_t* qs = &quicksaves.list[quicksaves.count];
+			qs->slot = i;
+			qs->time = filetime;
+			strftime (qs->name, sizeof (qs->name), "quick %Y-%m-%d %H:%M:%S", localtime (&filetime));
+			quicksaves.count++;
+		}
+
+		fclose (f);
+	}
+
+	qsort (quicksaves.list, quicksaves.count, sizeof (quicksave_t), M_QuickSaveCompare);
+
+	for (i = 0; i < quicksaves.count; i++)
+	{
+		q_strlcpy (m_filenames[i], quicksaves.list[i].name, SAVEGAME_COMMENT_LENGTH + 1);
+		loadable[i] = true;
+	}
+}
+
+void M_Menu_QuickLoad_f (void)
+{
+	m_entersound = true;
+	m_state = m_quickload;
+
+	IN_DeactivateForMenu();
+	key_dest = key_menu;
+	M_ScanQuickSaves ();
+}
+
 void M_Menu_Load_f (void)
 {
+	if (m_state == m_load && (int)quicksave_rotation.value)
+	{
+		M_Menu_QuickLoad_f ();
+		return;
+	}
+
 	m_entersound = true;
 	m_state = m_load;
 
@@ -1444,7 +1598,6 @@ void M_Menu_Load_f (void)
 	key_dest = key_menu;
 	M_ScanSaves ();
 }
-
 
 void M_Menu_Save_f (void)
 {
@@ -1476,6 +1629,21 @@ void M_Load_Draw (void)
 
 // line cursor
 	M_DrawArrowCursor (8, 32 + load_cursor*8);
+}
+
+void M_QuickLoad_Draw (void)
+{
+	int		i;
+	qpic_t	*p;
+
+	p = Draw_CachePic ("gfx/p_load.lmp");
+	M_DrawPic ( (320-p->width)/2, 4, p);
+
+	for (i = 0; i < MAX_SAVEGAMES; i++)
+		M_Print (16, 32 + 8*i, m_filenames[i]);
+
+// line cursor
+	M_DrawArrowCursor (8, 32 + quickload_cursor*8);
 }
 
 
@@ -1538,6 +1706,49 @@ void M_Load_Key (int k)
 	}
 }
 
+void M_QuickLoad_Key (int k)
+{
+	switch (k)
+	{
+	case K_ESCAPE:
+	case K_BBUTTON:
+	case K_MOUSE4:
+	case K_MOUSE2:
+		M_Menu_SinglePlayer_f ();
+		break;
+
+	case K_ENTER:
+	case K_KP_ENTER:
+	case K_ABUTTON:
+	case K_MOUSE1:
+		M_ThrottledSound ("misc/menu2.wav");
+		if (!loadable[quickload_cursor])
+			return;
+		m_state = m_none;
+		key_dest = key_game;
+
+	// issue the load command
+		Cbuf_AddText (va ("load quicksave/quick%i\n", quicksaves.list[quickload_cursor].slot));
+		return;
+
+	case K_UPARROW:
+	case K_LEFTARROW:
+		M_ThrottledSound ("misc/menu1.wav");
+		quickload_cursor--;
+		if (quickload_cursor < 0)
+			quickload_cursor = MAX_SAVEGAMES-1;
+		break;
+
+	case K_DOWNARROW:
+	case K_RIGHTARROW:
+		M_ThrottledSound ("misc/menu1.wav");
+		quickload_cursor++;
+		if (quickload_cursor >= MAX_SAVEGAMES)
+			quickload_cursor = 0;
+		break;
+	}
+}
+
 
 void M_Save_Key (int k)
 {
@@ -1583,6 +1794,14 @@ void M_Load_Mousemove (float cx, float cy)
 	int prev = load_cursor;
 	M_UpdateCursor (cy, 32, 8, MAX_SAVEGAMES, &load_cursor);
 	if (load_cursor != prev)
+		M_MouseSound ("misc/menu1.wav");
+}
+
+void M_QuickLoad_Mousemove (float cx, float cy)
+{
+	int prev = quickload_cursor;
+	M_UpdateCursor (cy, 32, 8, MAX_SAVEGAMES, &quickload_cursor);
+	if (quickload_cursor != prev)
 		M_MouseSound ("misc/menu1.wav");
 }
 
@@ -7248,6 +7467,7 @@ void M_Init (void)
 	Cmd_AddCommand ("menu_main", M_Menu_Main_f);
 	Cmd_AddCommand ("menu_singleplayer", M_Menu_SinglePlayer_f);
 	Cmd_AddCommand ("menu_load", M_Menu_Load_f);
+	Cmd_AddCommand ("menu_quickload", M_Menu_QuickLoad_f);
 	Cmd_AddCommand ("menu_save", M_Menu_Save_f);
 	Cmd_AddCommand ("menu_multiplayer", M_Menu_MultiPlayer_f);
 	Cmd_AddCommand ("menu_setup", M_Menu_Setup_f);
@@ -7267,6 +7487,7 @@ void M_Init (void)
 	Cvar_RegisterVariable (&ui_mouse_sound);
 	Cvar_RegisterVariable (&ui_sound_throttle);
 	Cvar_RegisterVariable (&ui_search_timeout);
+	Cvar_RegisterVariable (&quicksave_rotation);
 }
 
 static void M_UpdateBounds (void)
@@ -7331,6 +7552,10 @@ void M_Draw (void)
 
 	case m_load:
 		M_Load_Draw ();
+		break;
+
+	case m_quickload:
+		M_QuickLoad_Draw ();
 		break;
 
 	case m_save:
@@ -7473,6 +7698,10 @@ void M_Keydown (int key, qboolean repeat)
 		M_Load_Key (key);
 		return;
 
+	case m_quickload:
+		M_QuickLoad_Key (key);
+		return;
+
 	case m_save:
 		M_Save_Key (key);
 		return;
@@ -7582,6 +7811,10 @@ void M_Mousemove (int screenx, int screeny)
 
 	case m_load:
 		M_Load_Mousemove (x, y);
+		return;
+
+	case m_quickload:
+		M_QuickLoad_Mousemove (x, y);
 		return;
 
 	case m_save:
