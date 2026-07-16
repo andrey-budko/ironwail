@@ -1233,6 +1233,15 @@ void SV_Physics_Step (edict_t *ent)
 
 //============================================================================
 
+// track ED_Alloc during SV_Physics execution
+static void SV_Physics_Alloc_Hook (edict_t *e)
+{
+	// track the newly allocated edicts in order to add them into the pushable_ent_cache.
+	// this is OK because by construction free edicts cannot be reused immediatly,
+	// so e is garanteed not to be in pushable_ent_cache already.
+	pushable_ent_cache[num_pushable_ent_cache++] = e;
+}
+
 /*
 ================
 SV_Physics
@@ -1244,6 +1253,8 @@ void SV_Physics (void)
 	int	i;
 	int	entity_cap; // For sv_freezenonclients 
 	edict_t	*ent;
+
+	ED_AllocHook_func previous_alloc_hook = NULL;
 
 // let the progs know that a new frame has started
 	pr_global_struct->self = EDICT_TO_PROG(qcvm->edicts);
@@ -1282,6 +1293,8 @@ void SV_Physics (void)
 
 			pushable_ent_cache[num_pushable_ent_cache++] = check;
 		}
+
+		previous_alloc_hook = ED_AllocSetHook (SV_Physics_Alloc_Hook);
 	}
 
 	//for (i=0 ; i<sv.num_edicts ; i++, ent = NEXT_EDICT(ent))
@@ -1332,4 +1345,7 @@ void SV_Physics (void)
 
 	if (!sv_freezenonclients.value) 
 	  qcvm->time += host_frametime;
+
+	if (sv_fastpushmove.value > 0.f)
+		ED_AllocSetHook (previous_alloc_hook);
 }

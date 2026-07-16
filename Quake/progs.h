@@ -333,6 +333,12 @@ edict_t *ED_Alloc (void);
 void ED_Free (edict_t *ed);
 void ED_ClearEdict (edict_t *e);
 
+typedef void (*ED_AllocHook_func) (edict_t *allocated_ed);
+
+// register a ED_AllocHook_func that will be called at each ED_Alloc,
+// passing the newly allocated allocated_ed. Returns the previously registered ED_AllocHook.
+ED_AllocHook_func ED_AllocSetHook (ED_AllocHook_func alloc_hook);
+
 qboolean ED_IsRelevantField (edict_t *ed, ddef_t *d);
 const char *ED_FieldValueString (edict_t *ed, ddef_t *d);
 void ED_Print (edict_t *ed);

@@ -186,6 +186,16 @@ void ED_ClearEdict (edict_t *e)
 	memset (&e->v, 0, qcvm->progs->entityfields * 4);
 }
 
+static ED_AllocHook_func ED_ALLOC_HOOK = NULL;
+
+ED_AllocHook_func ED_AllocSetHook (ED_AllocHook_func alloc_hook)
+{
+	ED_AllocHook_func previous = ED_ALLOC_HOOK;
+	ED_ALLOC_HOOK = alloc_hook;
+
+	return previous;
+}
+
 /*
 =================
 ED_Alloc
@@ -211,6 +221,10 @@ edict_t *ED_Alloc (void)
 		if (e->freetime < 2 || qcvm->time - e->freetime > 0.5)
 		{
 			ED_ClearEdict (e);
+
+			if (ED_ALLOC_HOOK)
+				ED_ALLOC_HOOK (e);
+
 			return e;
 		}
 	}
@@ -221,6 +235,9 @@ edict_t *ED_Alloc (void)
 	e = EDICT_NUM(qcvm->num_edicts++);
 	memset(e, 0, qcvm->edict_size); // ericw -- switched sv.edicts to malloc(), so we are accessing uninitialized memory and must fully zero it, not just ED_ClearEdict
 	e->baseline.scale = ENTSCALE_DEFAULT;
+
+	if (ED_ALLOC_HOOK)
+		ED_ALLOC_HOOK (e);
 
 	return e;
 }
