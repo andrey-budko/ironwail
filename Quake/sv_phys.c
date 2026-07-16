@@ -47,7 +47,12 @@ cvar_t	sv_gravity = {"sv_gravity","800",CVAR_NOTIFY|CVAR_SERVERINFO};
 cvar_t	sv_maxvelocity = {"sv_maxvelocity","2000",CVAR_NONE};
 cvar_t	sv_nostep = {"sv_nostep","0",CVAR_NONE};
 cvar_t	sv_freezenonclients = {"sv_freezenonclients","0",CVAR_NONE};
+// 0 = old SV_PushMove processing; 1 = faster SV_PushMove
+cvar_t sv_fastpushmove = {"sv_fastpushmove", "1", CVAR_ARCHIVE};
 
+// For usage by SV_PushMove, allocate at max possible size
+static edict_t *pushable_ent_cache[MAX_EDICTS];
+static int		num_pushable_ent_cache;
 
 #define	MOVE_EPSILON	0.01
 
@@ -472,9 +477,20 @@ void SV_PushMove (edict_t *pusher, float movetime)
 
 // see if any solid entities are inside the final position
 	num_moved = 0;
+	const bool fast_pushers = (sv_fastpushmove.value > 0.f);
+
 	check = NEXT_EDICT(qcvm->edicts);
-	for (e=1 ; e<qcvm->num_edicts ; e++, check = NEXT_EDICT(check))
+	for (e = 0; e < (fast_pushers ? num_pushable_ent_cache : qcvm->num_edicts - 1); e++)
 	{
+		if (fast_pushers)
+		{
+			check = pushable_ent_cache[e];
+		}
+		else if (e > 0)
+		{
+			check = NEXT_EDICT (check);
+		}
+
 		qboolean riding;
 		int movemask;
 		if (check->free)
@@ -1246,6 +1262,27 @@ void SV_Physics (void)
 	  entity_cap = svs.maxclients + 1; // Only run physics on clients and the world
 	else
 	  entity_cap = qcvm->num_edicts;
+
+	// fill the pushable entities cache
+	if (sv_fastpushmove.value > 0.f)
+	{
+		// beware, we skip entity 0 here:
+		edict_t *check = NEXT_EDICT (qcvm->edicts);
+		num_pushable_ent_cache = 0;
+		for (int e = 1; e < qcvm->num_edicts; e++, check = NEXT_EDICT (check))
+		{
+			int movemask;
+
+			if (check->free)
+				continue;
+
+			movemask = 1 << (int)check->v.movetype;
+			if (movemask & ((1 << MOVETYPE_PUSH) | (1 << MOVETYPE_NONE) | (1 << MOVETYPE_NOCLIP)))
+				continue;
+
+			pushable_ent_cache[num_pushable_ent_cache++] = check;
+		}
+	}
 
 	//for (i=0 ; i<sv.num_edicts ; i++, ent = NEXT_EDICT(ent))
 	for (i=0 ; i<entity_cap ; i++, ent = NEXT_EDICT(ent))

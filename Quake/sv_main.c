@@ -141,6 +141,7 @@ void SV_Init (void)
 	extern	cvar_t	sv_gravity;
 	extern	cvar_t	sv_nostep;
 	extern	cvar_t	sv_freezenonclients;
+	extern	cvar_t	sv_fastpushmove;
 	extern	cvar_t	sv_friction;
 	extern	cvar_t	sv_edgefriction;
 	extern	cvar_t	sv_stopspeed;
@@ -169,6 +170,7 @@ void SV_Init (void)
 	Cvar_RegisterVariable (&sv_aim);
 	Cvar_RegisterVariable (&sv_nostep);
 	Cvar_RegisterVariable (&sv_freezenonclients);
+	Cvar_RegisterVariable (&sv_fastpushmove);
 	Cvar_RegisterVariable (&pr_checkextension);
 	Cvar_RegisterVariable (&sv_altnoclip); //johnfitz
 	Cvar_RegisterVariable (&sv_gameplayfix_random);
