@@ -3675,10 +3675,11 @@ static void Host_Startdemos_f (void)
 	if (!sv.active && cls.demonum != -1 && !cls.demoplayback)
 	{
 		cls.demonum = 0;
-		Cbuf_InsertText ("menu_main\n");
+		if (cl_startmenu.value)
+			Cbuf_InsertText ("menu_main\n");
 		if (!cl_startdemos.value)
 		{  /* QuakeSpasm customization: */
-			/* go straight to menu, no CL_NextDemo */
+			/* go straight to menu/console, no CL_NextDemo */
 			cls.demonum = -1;
 			return;
 		}
